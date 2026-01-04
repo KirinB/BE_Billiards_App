@@ -1,0 +1,53 @@
+datasource db {
+  provider = "postgresql"
+  // url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum GameType {
+  BIDA_1VS1      // Chế độ 2 người, tính ván thắng
+  BIDA_DIEM_DEN  // Chế độ 3-4 người, tính điểm bi 3-6-9
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String
+  pin         String   // Mã PIN để xác thực quyền Player
+  type        GameType @default(BIDA_DIEM_DEN)
+  isFinished  Boolean  @default(false)
+  // Cấu hình điểm cho bi (chỉ dùng nếu type là BIDA_DIEM_DEN)
+  valBi3      Int      @default(1)
+  valBi6      Int      @default(2)
+  valBi9      Int      @default(3)
+  
+  // Quan hệ
+  players     Player[]
+  history     History[]
+
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  name      String
+  score     Int      @default(0)
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model History {
+  id              String   @id @default(uuid())
+  roomId          String
+  room            Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  content         String   
+  rawLog          Json     
+  createdAt       DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
