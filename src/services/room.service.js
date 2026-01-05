@@ -153,7 +153,7 @@ export const RoomService = {
   // 5. Hoàn tác điểm số (Undo)
   async undoScore(roomId, { historyId, pin }) {
     const room = await prisma.room.findUnique({
-      where: { id: roomId },
+      where: { id: +roomId },
       include: { history: { where: { id: historyId } } },
     });
 
@@ -206,7 +206,7 @@ export const RoomService = {
 
   async finishRoom(roomId, pin) {
     const room = await prisma.room.findUnique({
-      where: { id: roomId },
+      where: { id: +roomId },
     });
 
     if (!room) throw new Error("Phòng không tồn tại");
@@ -214,7 +214,7 @@ export const RoomService = {
       throw new Error("Mã PIN không chính xác để kết thúc ván");
 
     return await prisma.room.update({
-      where: { id: roomId },
+      where: { id: +roomId },
       data: { isFinished: true }, // Đánh dấu đã kết thúc
       include: {
         players: { orderBy: { score: "desc" } }, // Trả về kết quả cuối cùng để FE hiển thị tổng kết
