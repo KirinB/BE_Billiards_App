@@ -52,8 +52,8 @@ export const RoomService = {
 
   // 3. Lấy chi tiết phòng (QUAN TRỌNG: Phải include history)
   async getRoomDetail(roomId) {
-    const room = await prisma.room.findFirst({
-      where: { id: roomId },
+    const room = await prisma.room.findUnique({
+      where: { id: +roomId },
       include: {
         players: { orderBy: { id: "asc" } },
         history: {
