@@ -75,7 +75,7 @@ export const RoomService = {
     const { pin, currentPlayerId, loserIds, events, winnerId } = data;
 
     const room = await prisma.room.findUnique({
-      where: { id: roomId },
+      where: { id: +roomId },
       include: { players: true },
     });
 
