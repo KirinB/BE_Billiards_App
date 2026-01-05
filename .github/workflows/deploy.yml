@@ -21,7 +21,8 @@ jobs:
           port: ${{ secrets.REMOTE_PORT }}
           script: |
             cd ${{ secrets.TARGET_DIR }}
-            git pull origin main
+            git fetch --all
+            git reset --hard origin/main
             npm install
             npx prisma generate
             npx prisma db push
