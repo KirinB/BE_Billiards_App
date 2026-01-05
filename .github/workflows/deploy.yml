@@ -1,0 +1,29 @@
+name: Deploy Backend Bida
+
+on:
+  push:
+    branches:
+      - main # Hoặc master tùy bạn dùng nhánh nào
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.TARGET_DIR }}
+            git pull origin main
+            npm install
+            npx prisma generate
+            npx prisma db push
+            # Restart app hoặc Start mới nếu chưa có
+            NODE_ENV=production pm2 restart bida-be --update-env || NODE_ENV=production pm2 start index.js --name bida-be
+            pm2 save
