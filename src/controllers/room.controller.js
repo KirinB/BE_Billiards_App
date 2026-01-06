@@ -50,13 +50,21 @@ export const RoomController = {
   },
 
   async getById(req, res) {
-    const { roomId } = req.query;
-    console.log(roomId);
     try {
-      const result = await RoomService.getById(roomId);
-      return res.json({ message: "Lấy thành công dữ liệu", room: result });
+      const { id } = req.params;
+      const { pin } = req.query;
+      console.log("ID nhận được:", id);
+
+      const result = await RoomService.getRoomDetail(id, pin);
+      return res.json({
+        message: "Lấy thành công dữ liệu",
+        room: result,
+      });
     } catch (error) {
-      res.status(500).json({ error: err.message });
+      console.error("Lỗi Controller:", error.message);
+      // Trả về error.status nếu có (403), không thì mặc định 500
+      const status = error.status || 500;
+      return res.status(status).json({ message: error.message });
     }
   },
 
@@ -78,6 +86,11 @@ export const RoomController = {
         winnerId, // dùng cho 1vs1
       });
 
+      const io = req.app.get("socketio");
+      // Gửi dữ liệu phòng mới nhất cho mọi người trong roomId
+      // result thường chứa thông tin room sau khi update
+      io.to(roomId.toString()).emit("room_updated", result);
+
       return res.status(200).json({
         message: "Cập nhật thành công",
         data: result,
@@ -96,6 +109,9 @@ export const RoomController = {
 
       // Gọi service xử lý logic hoàn trả điểm
       const result = await RoomService.undoScore(roomId, { historyId, pin });
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_updated", result);
 
       return res.status(200).json({
         message: "Hoàn tác thành công",
@@ -118,6 +134,9 @@ export const RoomController = {
       }
 
       const result = await RoomService.finishRoom(roomId, pin);
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_finished", { roomId });
 
       return res.status(200).json({
         message: "Ván đấu đã kết thúc thành công",

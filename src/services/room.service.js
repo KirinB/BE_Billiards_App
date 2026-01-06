@@ -51,9 +51,10 @@ export const RoomService = {
   },
 
   // 3. Lấy chi tiết phòng (Dùng +roomId)
-  async getRoomDetail(roomId) {
+
+  async getRoomDetail(roomId, pin) {
     const room = await prisma.room.findUnique({
-      where: { id: +roomId }, // Ép kiểu số
+      where: { id: +roomId },
       include: {
         players: { orderBy: { id: "asc" } },
         history: {
@@ -63,8 +64,33 @@ export const RoomService = {
       },
     });
 
-    if (!room) return null;
-    return room;
+    if (!room) {
+      throw new Error("Phòng không tồn tại");
+    }
+
+    // TRƯỜNG HỢP 1: Người dùng chỉ vào xem (Không gửi PIN)
+    if (!pin) {
+      // Trả về dữ liệu nhưng ẩn PIN của phòng để tránh bị lộ ở phía Client
+      const { pin: _, ...viewableRoom } = room;
+      return {
+        ...viewableRoom,
+        isViewer: true, // Gắn flag để Frontend biết đây là chế độ xem
+      };
+    }
+
+    // TRƯỜNG HỢP 2: Người dùng nhập PIN để quản lý
+    if (String(room.pin) !== String(pin)) {
+      // Nếu có gửi PIN nhưng sai -> Báo lỗi 403 hoặc 401
+      const error = new Error("Mã PIN không chính xác");
+      error.status = 403;
+      throw error;
+    }
+
+    // Nếu PIN đúng
+    return {
+      ...room,
+      isViewer: false,
+    };
   },
 
   // 4. Tính toán và áp dụng điểm
