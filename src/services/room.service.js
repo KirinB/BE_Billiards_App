@@ -52,9 +52,49 @@ export const RoomService = {
 
   // 3. Lấy chi tiết phòng (Dùng +roomId)
 
+  // async getRoomDetail(roomId, pin) {
+  //   const room = await prisma.room.findUnique({
+  //     where: { id: +roomId },
+  //     include: {
+  //       players: { orderBy: { id: "asc" } },
+  //       history: {
+  //         take: 50,
+  //         orderBy: { createdAt: "desc" },
+  //       },
+  //     },
+  //   });
+
+  //   if (!room) {
+  //     throw new Error("Phòng không tồn tại");
+  //   }
+
+  //   // TRƯỜNG HỢP 1: Người dùng chỉ vào xem (Không gửi PIN)
+  //   if (!pin) {
+  //     // Trả về dữ liệu nhưng ẩn PIN của phòng để tránh bị lộ ở phía Client
+  //     const { pin: _, ...viewableRoom } = room;
+  //     return {
+  //       ...viewableRoom,
+  //       isViewer: true, // Gắn flag để Frontend biết đây là chế độ xem
+  //     };
+  //   }
+
+  //   // TRƯỜNG HỢP 2: Người dùng nhập PIN để quản lý
+  //   if (String(room.pin) !== String(pin)) {
+  //     // Nếu có gửi PIN nhưng sai -> Báo lỗi 403 hoặc 401
+  //     const error = new Error("Mã PIN không chính xác");
+  //     error.status = 403;
+  //     throw error;
+  //   }
+
+  //   // Nếu PIN đúng
+  //   return {
+  //     ...room,
+  //     isViewer: false,
+  //   };
+  // },
   async getRoomDetail(roomId, pin) {
     const room = await prisma.room.findUnique({
-      where: { id: +roomId },
+      where: { id: Number(roomId) },
       include: {
         players: { orderBy: { id: "asc" } },
         history: {
@@ -65,31 +105,44 @@ export const RoomService = {
     });
 
     if (!room) {
-      throw new Error("Phòng không tồn tại");
+      const err = new Error("Phòng không tồn tại");
+      err.status = 404;
+      throw err;
     }
 
-    // TRƯỜNG HỢP 1: Người dùng chỉ vào xem (Không gửi PIN)
-    if (!pin) {
-      // Trả về dữ liệu nhưng ẩn PIN của phòng để tránh bị lộ ở phía Client
-      const { pin: _, ...viewableRoom } = room;
+    // 🔥 PHÒNG ĐÃ KẾT THÚC → ÉP READ ONLY
+    if (room.isFinished) {
+      const { pin: _, ...archivedRoom } = room;
       return {
-        ...viewableRoom,
-        isViewer: true, // Gắn flag để Frontend biết đây là chế độ xem
+        ...archivedRoom,
+        isFinished: true,
+        isViewer: true,
+        readOnly: true,
       };
     }
 
-    // TRƯỜNG HỢP 2: Người dùng nhập PIN để quản lý
-    if (String(room.pin) !== String(pin)) {
-      // Nếu có gửi PIN nhưng sai -> Báo lỗi 403 hoặc 401
-      const error = new Error("Mã PIN không chính xác");
-      error.status = 403;
-      throw error;
+    // 👀 VIEW MODE (không gửi PIN)
+    if (!pin) {
+      const { pin: _, ...viewableRoom } = room;
+      return {
+        ...viewableRoom,
+        isViewer: true,
+        readOnly: true,
+      };
     }
 
-    // Nếu PIN đúng
+    // 🔐 PIN SAI
+    if (String(room.pin) !== String(pin)) {
+      const err = new Error("Mã PIN không chính xác");
+      err.status = 403;
+      throw err;
+    }
+
+    // ✅ PLAYER / CHỦ PHÒNG
     return {
       ...room,
       isViewer: false,
+      readOnly: false,
     };
   },
 
@@ -241,6 +294,13 @@ export const RoomService = {
       include: {
         players: { orderBy: { score: "desc" } },
       },
+    });
+  },
+
+  async getRoomStatus(roomId) {
+    return await prisma.room.findUnique({
+      where: { id: +roomId },
+      select: { isFinished: true },
     });
   },
 };

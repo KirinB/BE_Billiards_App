@@ -1,9 +1,13 @@
 import express from "express";
 import cors from "cors";
-import { createServer } from "http"; // Thêm cái này
-import { Server } from "socket.io"; // Thêm cái này
+import cookieParser from "cookie-parser";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 import roomRoutes from "./routes/room.route.js";
+import authRoutes from "./routes/auth.route.js";
+import { errorHandler } from "./middlewares/error.middleware.js";
+import { authenticate } from "./middlewares/auth.middleware.js";
 
 const app = express();
 const prisma = new PrismaClient();
@@ -17,6 +21,7 @@ const allowedOrigins = [
   "https://bida.uynghi.com/",
 ];
 
+app.use(cookieParser());
 app.use(
   cors({
     origin: allowedOrigins,
@@ -55,6 +60,9 @@ io.on("connection", (socket) => {
 // Điều hướng Routes
 app.use("/api/rooms", roomRoutes);
 
+//Điều hướng Auth Routes
+app.use("/api/auth", authRoutes);
+
 app.get("/api/ping", (req, res) => {
   res.json({
     status: "active",
@@ -62,6 +70,12 @@ app.get("/api/ping", (req, res) => {
     time: new Date().toISOString(),
   });
 });
+
+app.get("/api/me", authenticate, (req, res) => {
+  res.json({ user: req.user });
+});
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 

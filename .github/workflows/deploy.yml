@@ -23,9 +23,9 @@ jobs:
             cd ${{ secrets.TARGET_DIR }}
             git fetch --all
             git reset --hard origin/main
-            npm install
+            npm install --production
             npx prisma generate
-            npx prisma db push --accept-data-loss
-            # Restart app hoặc Start mới nếu chưa có
-            NODE_ENV=production pm2 restart bida-be --update-env || NODE_ENV=production pm2 start index.js --name bida-be
+            npx prisma migrate deploy
+            # Restart bằng file ecosystem nếu có, hoặc dùng name
+            pm2 restart bida-be || pm2 start ./src/server.js --name bida-be
             pm2 save

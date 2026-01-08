@@ -37,8 +37,10 @@ model Player {
   id        Int      @id @default(autoincrement())
   name      String
   score     Int      @default(0)
-  roomId    Int      
+  roomId    Int
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    Int?     // optional nếu player đã login
+  user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -51,4 +53,25 @@ model History {
   rawLog    Json     
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Thêm các model khác nếu cần thiết
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  username    String
+  password    String   // hash
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  players     Player[] // relation đến các ván họ tham gia
+  sessions    Session[]
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   // random token hoặc jwt refresh token
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
 }

@@ -11,4 +11,5 @@ router.get("/:id", RoomController.getById);
 router.patch("/", RoomController.updateScore);
 router.delete("/undo", RoomController.undoScore);
 router.post("/:roomId/finish", RoomController.finish);
+
 export default router;
