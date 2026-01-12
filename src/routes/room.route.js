@@ -1,12 +1,15 @@
 // src/routes/room.route.js
 import express from "express";
 import { RoomController } from "../controllers/room.controller.js";
-import { authenticate } from "../middlewares/auth.middleware.js";
+import {
+  authenticate,
+  optionalAuthenticate,
+} from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
 router.get("/", RoomController.getAll);
-router.post("/", RoomController.create);
+router.post("/", optionalAuthenticate, RoomController.create);
 // router.post("/:roomId/score", RoomController.applyScore);
 router.get("/:id", RoomController.getById);
 router.patch("/", RoomController.updateScore);

@@ -37,7 +37,14 @@ export const RoomController = {
 
   async create(req, res, next) {
     try {
-      const room = await RoomService.createRoom(req.body);
+      // Lấy userId từ user đã được optionalAuthenticate giải mã (nếu có)
+      const creatorId = req.user?.id || null;
+
+      const room = await RoomService.createRoom({
+        ...req.body,
+        creatorId,
+      });
+
       return success(res, room, "Tạo phòng thành công", 201);
     } catch (err) {
       next(new AppError(err.message, 400));

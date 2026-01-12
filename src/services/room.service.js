@@ -14,7 +14,8 @@ export const RoomService = {
 
   // 2. Tạo phòng mới kèm người chơi
   async createRoom(data) {
-    const { name, pin, type, playerNames, valBi3, valBi6, valBi9 } = data;
+    const { name, pin, type, playerNames, valBi3, valBi6, valBi9, creatorId } =
+      data;
 
     if (!playerNames || !Array.isArray(playerNames) || playerNames.length < 2) {
       throw new Error("Phòng phải có ít nhất 2 người chơi");
@@ -37,7 +38,12 @@ export const RoomService = {
       players: {
         create: playerNames
           .filter((n) => n && n.trim() !== "")
-          .map((n) => ({ name: n.trim(), score: 0 })),
+          .map((n, index) => ({
+            name: n.trim(),
+            score: 0,
+            // Nếu là người chơi đầu tiên (P1) và có creatorId, gán userId luôn
+            userId: index === 0 && creatorId ? creatorId : null,
+          })),
       },
     };
 

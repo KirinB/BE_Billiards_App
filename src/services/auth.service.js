@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { sanitizeUser } from "../utils/sanitizeUser.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const ACCESS_EXPIRES = process.env.ACCESS_TOKEN_EXPIRES_IN || "15m";
+const ACCESS_EXPIRES = process.env.ACCESS_TOKEN_EXPIRES_IN || "10s";
 const SESSION_DAYS = parseInt(process.env.SESSION_DAYS) || 7;
 
 export const AuthService = {
