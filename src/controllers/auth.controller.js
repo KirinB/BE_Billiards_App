@@ -61,7 +61,12 @@ export const AuthController = {
 
   async profile(req, res, next) {
     try {
-      return success(res, { user: req.user }, "Thông tin người dùng");
+      const userId = req.user.id;
+      const profile = await AuthService.getGameHistory(userId);
+
+      if (!profile) throw new AppError("Không tìm thấy người dùng", 404);
+
+      return success(res, profile, "Lấy lịch sử đấu thành công");
     } catch (err) {
       next(err);
     }

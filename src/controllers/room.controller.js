@@ -115,4 +115,26 @@ export const RoomController = {
       next(err);
     }
   },
+
+  async claim(req, res, next) {
+    try {
+      const { roomId } = req.params;
+      const { playerId } = req.body;
+      const user = req.user;
+      if (!playerId) throw new AppError("Thiếu playerId", 400);
+
+      const result = await RoomService.claimPlayer(roomId, {
+        playerId,
+        userId: user.id,
+        username: user.username,
+      });
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_updated", result);
+
+      return success(res, result, "Nhận nhân vật thành công");
+    } catch (err) {
+      next(err);
+    }
+  },
 };

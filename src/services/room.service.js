@@ -303,4 +303,49 @@ export const RoomService = {
       select: { isFinished: true },
     });
   },
+
+  async claimPlayer(roomId, { playerId, userId, username }) {
+    const numericRoomId = Number(roomId);
+    const numericPlayerId = Number(playerId);
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Kiểm tra xem người chơi này đã bị gán userId chưa
+      const targetPlayer = await tx.player.findUnique({
+        where: { id: numericPlayerId },
+      });
+
+      if (!targetPlayer) throw new Error("Không tìm thấy người chơi này");
+      if (targetPlayer.roomId !== numericRoomId)
+        throw new Error("Người chơi không thuộc phòng này");
+      if (targetPlayer.userId !== null)
+        throw new Error("Người chơi này đã được tài khoản khác nhận");
+
+      // 2. (Optional) Kiểm tra xem User này đã nhận Player nào khác trong phòng này chưa
+      const existingClaim = await tx.player.findFirst({
+        where: {
+          roomId: numericRoomId,
+          userId: userId,
+        },
+      });
+      if (existingClaim)
+        throw new Error("Bạn đã nhận một nhân vật khác trong phòng này rồi");
+
+      // 3. Update Player: Gán userId và đổi tên thành username
+      const updatedPlayer = await tx.player.update({
+        where: { id: Number(playerId) },
+        data: { userId, name: username },
+      });
+
+      // 4. Lấy lại toàn bộ dữ liệu phòng để broadcast qua Socket.io
+      const room = await tx.room.findUnique({
+        where: { id: numericRoomId },
+        include: {
+          players: { orderBy: { id: "asc" } },
+          history: { take: 50, orderBy: { createdAt: "desc" } },
+        },
+      });
+
+      return { ...room, currentUserId: userId };
+    });
+  },
 };

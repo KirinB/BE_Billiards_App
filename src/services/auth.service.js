@@ -84,4 +84,26 @@ export const AuthService = {
 
     throw new Error("Unauthorized");
   },
+
+  async getGameHistory(userId) {
+    return await prisma.user.findUnique({
+      where: { id: Number(userId) },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        createdAt: true,
+        players: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            room: {
+              include: {
+                players: true, // Để xem những ai khác đã chơi cùng
+              },
+            },
+          },
+        },
+      },
+    });
+  },
 };

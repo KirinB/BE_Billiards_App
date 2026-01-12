@@ -1,6 +1,7 @@
 // src/routes/room.route.js
 import express from "express";
 import { RoomController } from "../controllers/room.controller.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
@@ -11,5 +12,6 @@ router.get("/:id", RoomController.getById);
 router.patch("/", RoomController.updateScore);
 router.delete("/undo", RoomController.undoScore);
 router.post("/:roomId/finish", RoomController.finish);
+router.post("/:roomId/claim", authenticate, RoomController.claim);
 
 export default router;
