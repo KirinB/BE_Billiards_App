@@ -144,4 +144,92 @@ export const RoomController = {
       next(err);
     }
   },
+
+  async drawCard(req, res, next) {
+    try {
+      const { roomId } = req.params;
+      const { playerId } = req.body;
+      const user = req.user; // Đã qua middleware authenticate
+
+      if (!playerId) throw new AppError("Thiếu playerId", 400);
+
+      const result = await RoomService.drawCard(roomId, {
+        playerId,
+        userId: user.id,
+      });
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_updated", result);
+
+      return success(res, result, "Rút bài thành công");
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Bắt đầu game
+  async start(req, res, next) {
+    try {
+      const { roomId } = req.params;
+      const { pin } = req.body;
+      if (!pin) throw new AppError("Vui lòng nhập mã PIN để bắt đầu", 400);
+
+      const result = await RoomService.startGame(roomId, { pin });
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_updated", result);
+
+      return success(res, result, "Ván đấu bắt đầu!");
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Đánh trúng bi - Bỏ bài
+  async discard(req, res, next) {
+    try {
+      const { roomId } = req.params;
+      const { playerId, ballValue } = req.body;
+      const user = req.user;
+
+      if (!playerId || !ballValue)
+        throw new AppError("Thiếu thông tin bỏ bài", 400);
+
+      const result = await RoomService.discardCard(roomId, {
+        playerId,
+        userId: user.id,
+        ballValue,
+      });
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_updated", result);
+
+      return success(res, result, `Đã bỏ lá bài số ${ballValue}`);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async reset(req, res, next) {
+    try {
+      const { roomId } = req.params;
+      const { pin } = req.body;
+      const user = req.user;
+
+      if (!pin)
+        throw new AppError("Vui lòng nhập mã PIN để reset ván đấu", 400);
+
+      const result = await RoomService.resetGame(roomId, {
+        pin,
+        userId: user.id,
+      });
+
+      const io = req.app.get("socketio");
+      io.to(roomId.toString()).emit("room_updated", result);
+
+      return success(res, result, "Đã reset ván đấu, mời bắt đầu lại!");
+    } catch (err) {
+      next(err);
+    }
+  },
 };

@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { AppError } from "../utils/AppError.js";
 
 export const RoomService = {
   // 1. Lấy danh sách phòng cho trang chủ (ẩn PIN)
@@ -14,46 +15,89 @@ export const RoomService = {
 
   // 2. Tạo phòng mới kèm người chơi
   async createRoom(data) {
-    const { name, pin, type, playerNames, valBi3, valBi6, valBi9, creatorId } =
-      data;
+    const {
+      name,
+      pin,
+      type,
+      playerNames,
+      valBi3,
+      valBi6,
+      valBi9,
+      creatorId,
+      playerCount,
+    } = data;
 
-    if (!playerNames || !Array.isArray(playerNames) || playerNames.length < 2) {
-      throw new Error("Phòng phải có ít nhất 2 người chơi");
-    }
+    // if (
+    //   !playerNames ||
+    //   !Array.isArray(playerNames) ||
+    //   playerNames.length <= 2
+    // ) {
+    //   throw new Error("Phòng phải có ít nhất 2 người chơi");
+    // }
 
     if (type === "BIDA_1VS1" && playerNames.length !== 2) {
       throw new Error("Chế độ 1vs1 phải có đúng 2 người chơi");
     }
 
     const isDiemDen = type === "BIDA_DIEM_DEN";
+    const isBidaBai = type === "BIDA_BAI";
+
+    let initialDeck = null;
+    if (isBidaBai) {
+      const suits = ["Cơ", "Rô", "Chuồn", "Bích"];
+      initialDeck = [];
+
+      // Tạo 52 lá bài có đầy đủ Chất và Giá trị
+      for (let s of suits) {
+        for (let v = 1; v <= 13; v++) {
+          initialDeck.push({ value: v, suit: s });
+        }
+      }
+
+      // Xào bài Fisher-Yates
+      for (let i = initialDeck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [initialDeck[i], initialDeck[j]] = [initialDeck[j], initialDeck[i]];
+      }
+    }
 
     const roomData = {
       name,
       pin: String(pin),
       type,
       isFinished: false,
+      currentDeck: initialDeck,
       valBi3: isDiemDen ? valBi3 ?? 1 : 0,
       valBi6: isDiemDen ? valBi6 ?? 2 : 0,
       valBi9: isDiemDen ? valBi9 ?? 3 : 0,
       players: {
-        create: playerNames
-          .filter((n) => n && n.trim() !== "")
-          .map((n, index) => ({
-            name: n.trim(),
-            score: 0,
-            // Nếu là người chơi đầu tiên (P1) và có creatorId, gán userId luôn
-            userId: index === 0 && creatorId ? creatorId : null,
-          })),
+        create: isBidaBai
+          ? Array.from({ length: playerCount || 4 }).map((_, index) => ({
+              name: `Slot ${index + 1}`,
+              score: 0,
+              cards: [],
+              userId: index === 0 && creatorId ? creatorId : null,
+            }))
+          : playerNames
+              .filter((n) => n && n.trim() !== "")
+              .map((n, index) => ({
+                name: n.trim(),
+                score: 0,
+                userId: index === 0 && creatorId ? creatorId : null,
+              })),
       },
     };
 
-    return await prisma.room.create({
+    const room = await prisma.room.create({
       data: roomData,
       include: {
         players: true,
         history: { take: 50, orderBy: { createdAt: "desc" } },
       },
     });
+
+    const { currentDeck: _, ...roomWithoutDeck } = room;
+    return roomWithoutDeck;
   },
 
   // 3. Lấy chi tiết phòng (Dùng +roomId)
@@ -352,6 +396,275 @@ export const RoomService = {
       });
 
       return { ...room, currentUserId: userId };
+    });
+  },
+
+  async drawCard(roomId, { playerId, userId }) {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Lấy thông tin phòng và kiểm tra bài
+      const room = await tx.room.findUnique({ where: { id: +roomId } });
+      if (!room || room.isFinished) throw new Error("Phòng không khả dụng");
+
+      let deck = room.currentDeck || [];
+      if (deck.length === 0) throw new Error("Hết bài!");
+
+      // 2. Lấy thông tin người chơi
+      const player = await tx.player.findUnique({ where: { id: +playerId } });
+      if (!player) throw new Error("Không tìm thấy người chơi");
+
+      // 🔥 SỬA LỖI: So sánh userId của player với userId của người đang gọi API
+      if (player.userId !== userId) {
+        console.log({ player });
+        console.log({ userId });
+        // Nếu bạn chưa có AppError thì dùng Error tạm, nhưng nên dùng AppError
+        const err = new Error("Bạn không có quyền rút bài cho nhân vật này");
+        err.statusCode = 403;
+        throw err;
+      }
+
+      // 3. Rút bài
+      const cardFromDeck = deck.shift();
+      const newCard = {
+        id: `card-${Date.now()}-${Math.random()}`,
+        value: cardFromDeck.value,
+        suit: cardFromDeck.suit,
+        isFlipped: true,
+      };
+
+      // 4. Cập nhật Player (Thêm lá bài mới vào mảng cards)
+      // Đảm bảo cards được gán mảng mới hoàn toàn để Prisma nhận diện thay đổi JSON
+      const updatedCards = Array.isArray(player.cards)
+        ? [...player.cards, newCard]
+        : [newCard];
+
+      await tx.player.update({
+        where: { id: +playerId },
+        data: { cards: updatedCards },
+      });
+
+      // 5. Cập nhật Room (Xóa lá bài đã rút khỏi Deck)
+      const updatedRoom = await tx.room.update({
+        where: { id: +roomId },
+        data: { currentDeck: deck },
+        include: {
+          players: { orderBy: { id: "asc" } },
+          history: { take: 50, orderBy: { createdAt: "desc" } },
+        },
+      });
+
+      const deckCount = updatedRoom.currentDeck
+        ? updatedRoom.currentDeck.length
+        : 0;
+
+      const { currentDeck: _, ...safeRoom } = updatedRoom;
+      return { ...safeRoom, deckCount };
+    });
+  },
+
+  // 6. Bắt đầu game và chia bài (5 lá)
+  async startGame(roomId, { pin }) {
+    const numericRoomId = Number(roomId);
+    return await prisma.$transaction(async (tx) => {
+      const room = await tx.room.findUnique({
+        where: { id: numericRoomId },
+        include: { players: true },
+      });
+
+      if (!room) throw new AppError("Phòng không tồn tại", 404);
+      if (room.pin !== String(pin))
+        throw new AppError("Mã PIN không chính xác", 403);
+      if (room.type !== "BIDA_BAI")
+        throw new AppError("Chế độ này không hỗ trợ chia bài", 400);
+
+      // Kiểm tra xem đã claim hết slot chưa
+      const hasUnclaimed = room.players.some((p) => p.userId === null);
+      if (hasUnclaimed)
+        throw new AppError(
+          "Cần đủ người chơi (đã nhận slot) mới có thể bắt đầu",
+          400
+        );
+
+      // Tạo bộ bài mới 52 lá và xào
+      const suits = ["Cơ", "Rô", "Chuồn", "Bích"];
+      let deck = [];
+      for (let s of suits) {
+        for (let v = 1; v <= 13; v++) deck.push({ value: v, suit: s });
+      }
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+
+      // Chia mỗi người 5 lá
+      for (let player of room.players) {
+        const playerCards = [];
+        for (let i = 0; i < 5; i++) {
+          const card = deck.shift();
+          playerCards.push({
+            id: `card-${Date.now()}-${Math.random()}`,
+            value: card.value,
+            suit: card.suit,
+            isFlipped: true,
+          });
+        }
+        await tx.player.update({
+          where: { id: player.id },
+          data: { cards: playerCards, score: 0 },
+        });
+      }
+
+      const updatedRoom = await tx.room.update({
+        where: { id: numericRoomId },
+        data: { currentDeck: deck },
+        include: {
+          players: { orderBy: { id: "asc" } },
+          history: { take: 50, orderBy: { createdAt: "desc" } },
+        },
+      });
+
+      await tx.history.create({
+        data: {
+          roomId: numericRoomId,
+          content: "Bắt đầu ván mới - Chia 5 lá",
+          rawLog: { type: "START" },
+        },
+      });
+
+      const deckCount = updatedRoom.currentDeck
+        ? updatedRoom.currentDeck.length
+        : 0;
+
+      const { currentDeck: _, ...safeRoom } = updatedRoom;
+      return { ...safeRoom, deckCount };
+    });
+  },
+
+  // 7. Đánh bi trúng - Bỏ bài (Discard tất cả lá trùng giá trị)
+  async discardCard(roomId, { playerId, userId, ballValue }) {
+    return await prisma.$transaction(async (tx) => {
+      const player = await tx.player.findUnique({ where: { id: +playerId } });
+      if (!player) throw new AppError("Không tìm thấy người chơi", 404);
+      if (player.userId !== userId) throw new AppError("Không có quyền", 403);
+
+      const cards = player.cards || [];
+      const targetValue = Number(ballValue);
+
+      const remainingCards = cards.filter(
+        (c) => Number(c.value) !== targetValue
+      );
+      const removedCards = cards.filter((c) => Number(c.value) === targetValue);
+
+      if (removedCards.length === 0) {
+        throw new AppError(`Trong tay không có lá bài số ${targetValue}`, 400);
+      }
+
+      // 1. Cập nhật bài của người chơi trước
+      await tx.player.update({
+        where: { id: +playerId },
+        data: { cards: remainingCards },
+      });
+
+      // 🔥 2. QUAN TRỌNG: Tạo lịch sử TRƯỚC khi lấy dữ liệu Room
+      await tx.history.create({
+        data: {
+          roomId: +roomId,
+          content: `${player.name} đã bỏ ${removedCards.length} lá số ${targetValue}`,
+          rawLog: {
+            type: "DISCARD",
+            ballValue: targetValue,
+            count: removedCards.length,
+            removedCards,
+          },
+        },
+      });
+
+      // 🔥 3. Bây giờ mới lấy dữ liệu Room (Lúc này include: history sẽ có cả cái vừa tạo)
+      const updatedRoom = await tx.room.update({
+        where: { id: +roomId },
+        data: { updatedAt: new Date() },
+        include: {
+          players: { orderBy: { id: "asc" } },
+          history: {
+            take: 50,
+            orderBy: { createdAt: "desc" },
+          },
+        },
+      });
+
+      const deckCount = updatedRoom.currentDeck
+        ? updatedRoom.currentDeck.length
+        : 0;
+      const { currentDeck: _, ...safeRoom } = updatedRoom;
+
+      return { ...safeRoom, deckCount };
+    });
+  },
+
+  async resetGame(roomId, { pin, userId }) {
+    const numericRoomId = Number(roomId);
+
+    return await prisma.$transaction(async (tx) => {
+      const room = await tx.room.findUnique({
+        where: { id: numericRoomId },
+        include: { players: true },
+      });
+
+      if (!room) throw new AppError("Phòng không tồn tại", 404);
+      if (room.pin !== String(pin))
+        throw new AppError("Mã PIN không chính xác", 403);
+      if (room.type !== "BIDA_BAI")
+        throw new AppError("Chế độ này không hỗ trợ reset bài", 400);
+
+      // 1. Tạo bộ bài mới 52 lá
+      const suits = ["Cơ", "Rô", "Chuồn", "Bích"];
+      let deck = [];
+      for (let s of suits) {
+        for (let v = 1; v <= 13; v++) deck.push({ value: v, suit: s });
+      }
+
+      // Xào bài
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+
+      // 2. Thu hồi toàn bộ bài trên tay người chơi và reset điểm về 0
+      await tx.player.updateMany({
+        where: { roomId: numericRoomId },
+        data: {
+          cards: [],
+          score: 0,
+        },
+      });
+
+      // 3. Xóa lịch sử cũ (tùy chọn - nếu muốn sạch sẽ ván mới) hoặc thêm log reset
+      await tx.history.create({
+        data: {
+          roomId: numericRoomId,
+          content: "Ván đấu đã được reset bởi quản trị viên",
+          rawLog: { type: "RESET", byUserId: userId },
+        },
+      });
+
+      // 4. Cập nhật room với deck mới
+      const updatedRoom = await tx.room.update({
+        where: { id: numericRoomId },
+        data: {
+          currentDeck: deck,
+          updatedAt: new Date(),
+        },
+        include: {
+          players: { orderBy: { id: "asc" } },
+          history: { take: 50, orderBy: { createdAt: "desc" } },
+        },
+      });
+
+      const deckCount = updatedRoom.currentDeck
+        ? updatedRoom.currentDeck.length
+        : 0;
+      const { currentDeck: _, ...safeRoom } = updatedRoom;
+
+      return { ...safeRoom, deckCount };
     });
   },
 };

@@ -10,6 +10,7 @@ generator client {
 enum GameType {
   BIDA_1VS1      // Chế độ 2 người, tính ván thắng
   BIDA_DIEM_DEN  // Chế độ 3-4 người, tính điểm bi 3-6-9
+  BIDA_BAI
 }
 
 model Room {
@@ -23,6 +24,10 @@ model Room {
   valBi3      Int      @default(1)
   valBi6      Int      @default(2)
   valBi9      Int      @default(3)
+
+  // Quản lý bộ bài chung của cả phòng (Lưu dưới dạng mảng JSON các Card ID còn lại)
+  // Ví dụ: [1, 5, 12, 22...]
+  currentDeck Json?
   
   // Quan hệ
   players     Player[]
@@ -40,6 +45,8 @@ model Player {
   roomId    Int
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   userId    Int?     // optional nếu player đã login
+  // Cấu trúc Json: [{ "id": 1, "value": "A", "type": "Cơ", "isFlipped": false }, ...]
+  cards     Json?    @default("[]")
   user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
