@@ -16,5 +16,9 @@ router.patch("/", RoomController.updateScore);
 router.delete("/undo", RoomController.undoScore);
 router.post("/:roomId/finish", RoomController.finish);
 router.post("/:roomId/claim", authenticate, RoomController.claim);
-
+// Endpoint mới cho BIDA_BAI
+router.post("/:roomId/draw", authenticate, RoomController.drawCard);
+router.post("/:roomId/start", authenticate, RoomController.start);
+router.post("/:roomId/discard", authenticate, RoomController.discard);
+router.post("/:roomId/reset", authenticate, RoomController.reset);
 export default router;
