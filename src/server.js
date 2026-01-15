@@ -17,6 +17,8 @@ const isProduction = process.env.NODE_ENV === "production";
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5173/",
+  "https://localhost:5173",
+  "https://localhost:5173/",
   "https://bida.uynghi.com",
   "https://bida.uynghi.com/",
 ];
