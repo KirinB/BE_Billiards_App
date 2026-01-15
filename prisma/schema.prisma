@@ -64,13 +64,16 @@ model History {
 
 // Thêm các model khác nếu cần thiết
 model User {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
   username    String
-  password    String   // hash
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  players     Player[] // relation đến các ván họ tham gia
+  password    String?   // Đổi thành optional (?) vì user Google không có password
+  googleId    String?   @unique // Lưu ID định danh từ Google
+  facebookId  String?   @unique
+  avatar      String?   // Lưu ảnh đại diện từ Google nếu muốn
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  players     Player[]
   sessions    Session[]
 }
 

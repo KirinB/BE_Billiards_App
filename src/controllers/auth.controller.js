@@ -71,4 +71,58 @@ export const AuthController = {
       next(err);
     }
   },
+
+  async googleCallback(req, res, next) {
+    try {
+      const { idToken } = req.body; // Token này do Frontend gửi lên sau khi user login Google
+      const { user, accessToken, sessionToken } = await AuthService.googleLogin(
+        idToken
+      );
+
+      // Set cookie y hệt như hàm login
+      res.cookie("session", sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      return success(
+        res,
+        { userId: user.id, username: user.username, accessToken },
+        "Đăng nhập Google thành công"
+      );
+    } catch (err) {
+      next(new AppError(err.message, 400));
+    }
+  },
+
+  async facebookCallback(req, res, next) {
+    try {
+      const { accessToken: fbAccessToken } = req.body; // Token từ FE gửi lên
+
+      const { user, accessToken, sessionToken } =
+        await AuthService.facebookLogin(fbAccessToken);
+
+      // 🔐 SET HTTP-ONLY COOKIE (Đồng bộ với các hàm login khác)
+      res.cookie("session", sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      return success(
+        res,
+        {
+          userId: user.id,
+          username: user.username,
+          accessToken,
+        },
+        "Đăng nhập Facebook thành công"
+      );
+    } catch (err) {
+      next(new AppError(err.message, 400));
+    }
+  },
 };
