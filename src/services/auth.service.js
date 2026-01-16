@@ -170,7 +170,18 @@ export const AuthService = {
     const facebookId = data.id;
     const email = data.email;
     const name = data.name;
-    const avatar = `https://graph.facebook.com/${facebookId}/picture?type=large`;
+    const { data: pictureData } = await axios.get(
+      `https://graph.facebook.com/${facebookId}/picture`,
+      {
+        params: {
+          type: "large",
+          redirect: false,
+          access_token: fbAccessToken,
+        },
+      }
+    );
+
+    const avatar = pictureData.data.url;
 
     if (!email) {
       throw new Error("Tài khoản Facebook phải có email");
