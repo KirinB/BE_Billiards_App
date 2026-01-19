@@ -28,6 +28,7 @@ model Room {
   // Quản lý bộ bài chung của cả phòng (Lưu dưới dạng mảng JSON các Card ID còn lại)
   // Ví dụ: [1, 5, 12, 22...]
   currentDeck Json?
+  cardsPerPlayer   Int      @default(5)
   
   // Quan hệ
   players     Player[]

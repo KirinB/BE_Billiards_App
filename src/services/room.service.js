@@ -25,6 +25,7 @@ export const RoomService = {
       valBi9,
       creatorId,
       playerCount,
+      cardsPerPlayer,
     } = data;
 
     // if (
@@ -41,6 +42,18 @@ export const RoomService = {
 
     const isDiemDen = type === "BIDA_DIEM_DEN";
     const isBidaBai = type === "BIDA_BAI";
+
+    //Kiểm tra số lượng người chơi và bài mỗi người
+    const actualPlayerCount = isBidaBai
+      ? playerCount || 4
+      : playerNames?.length || 0;
+    const finalCardsPerPlayer = isBidaBai ? Number(cardsPerPlayer) || 5 : 5;
+
+    if (isBidaBai && finalCardsPerPlayer * actualPlayerCount > 52) {
+      throw new Error(
+        `Không đủ bài! Tổng bài cần (${finalCardsPerPlayer * actualPlayerCount}) vượt quá 52 lá.`
+      );
+    }
 
     let initialDeck = null;
     if (isBidaBai) {
@@ -67,9 +80,10 @@ export const RoomService = {
       type,
       isFinished: false,
       currentDeck: initialDeck,
-      valBi3: isDiemDen ? valBi3 ?? 1 : 0,
-      valBi6: isDiemDen ? valBi6 ?? 2 : 0,
-      valBi9: isDiemDen ? valBi9 ?? 3 : 0,
+      cardsPerPlayer: finalCardsPerPlayer,
+      valBi3: isDiemDen ? (valBi3 ?? 1) : 0,
+      valBi6: isDiemDen ? (valBi6 ?? 2) : 0,
+      valBi9: isDiemDen ? (valBi9 ?? 3) : 0,
       players: {
         create: isBidaBai
           ? Array.from({ length: playerCount || 4 }).map((_, index) => ({
@@ -495,11 +509,21 @@ export const RoomService = {
         [deck[i], deck[j]] = [deck[j], deck[i]];
       }
 
-      // Chia mỗi người 5 lá
+      const numCards = room.cardsPerPlayer || 5;
+
+      if (numCards * room.players.length > 52) {
+        throw new AppError(
+          "Số lượng người chơi và số lá bài quá lớn so với bộ bài 52 lá",
+          400
+        );
+      }
+
+      // Chia mỗi người theo numCards
       for (let player of room.players) {
         const playerCards = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < numCards; i++) {
           const card = deck.shift();
+          if (!card) break;
           playerCards.push({
             id: `card-${Date.now()}-${Math.random()}`,
             value: card.value,
@@ -525,8 +549,8 @@ export const RoomService = {
       await tx.history.create({
         data: {
           roomId: numericRoomId,
-          content: "Bắt đầu ván mới - Chia 5 lá",
-          rawLog: { type: "START" },
+          content: `Bắt đầu ván mới - Chia ${numCards} lá`,
+          rawLog: { type: "START", cardsDealt: numCards },
         },
       });
 
