@@ -39,10 +39,12 @@ export const RoomController = {
     try {
       // Lấy userId từ user đã được optionalAuthenticate giải mã (nếu có)
       const creatorId = req.user?.id || null;
+      const creatorUsername = req.user?.username || null;
 
       const room = await RoomService.createRoom({
         ...req.body,
         creatorId,
+        creatorUsername,
       });
 
       return success(res, room, "Tạo phòng thành công", 201);
@@ -126,14 +128,17 @@ export const RoomController = {
   async claim(req, res, next) {
     try {
       const { roomId } = req.params;
-      const { playerId } = req.body;
+      const { playerId, tempIdentity, guestName } = req.body;
       const user = req.user;
       if (!playerId) throw new AppError("Thiếu playerId", 400);
 
+      const finalName = user?.username || guestName;
+
       const result = await RoomService.claimPlayer(roomId, {
         playerId,
-        userId: user.id,
-        username: user.username,
+        userId: user?.id || null,
+        username: finalName,
+        tempIdentity: tempIdentity || null,
       });
 
       const io = req.app.get("socketio");
@@ -148,14 +153,15 @@ export const RoomController = {
   async drawCard(req, res, next) {
     try {
       const { roomId } = req.params;
-      const { playerId } = req.body;
+      const { playerId, tempIdentity } = req.body;
       const user = req.user; // Đã qua middleware authenticate
 
       if (!playerId) throw new AppError("Thiếu playerId", 400);
 
       const result = await RoomService.drawCard(roomId, {
         playerId,
-        userId: user.id,
+        userId: user?.id || null, // Dùng ?. để không bị crash nếu user null
+        tempIdentity: tempIdentity || null,
       });
 
       const io = req.app.get("socketio");
@@ -189,7 +195,7 @@ export const RoomController = {
   async discard(req, res, next) {
     try {
       const { roomId } = req.params;
-      const { playerId, ballValue } = req.body;
+      const { playerId, ballValue, tempIdentity } = req.body;
       const user = req.user;
 
       if (!playerId || !ballValue)
@@ -197,8 +203,9 @@ export const RoomController = {
 
       const result = await RoomService.discardCard(roomId, {
         playerId,
-        userId: user.id,
+        userId: user?.id || null,
         ballValue,
+        tempIdentity: tempIdentity || null,
       });
 
       const io = req.app.get("socketio");

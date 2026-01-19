@@ -48,6 +48,7 @@ model Player {
   userId    Int?     // optional nếu player đã login
   // Cấu trúc Json: [{ "id": 1, "value": "A", "type": "Cơ", "isFlipped": false }, ...]
   cards     Json?    @default("[]")
+  tempIdentity   String? 
   user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
